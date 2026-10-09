@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Center - CRM Predictivo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .pulse-animation { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        .ringing { animation: shake 0.5s infinite; }
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-10deg); }
+            75% { transform: rotate(10deg); }
+        }
+
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: #1e293b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transform: translateX(120%);
+            transition: transform 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        .toast.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex overflow-hidden">
+
+    <aside class="w-64 bg-slate-900 text-white flex flex-col transition-all duration-300 z-20 shrink-0">
+        <div class="h-16 flex items-center justify-center border-b border-slate-700 bg-slate-950">
+            <h1 class="text-xl font-bold tracking-wider flex items-center gap-2">
+                <i class="fas fa-headset text-blue-500"></i> PredictiDial
+            </h1>
+        </div>
+        <nav class="flex-1 py-6 overflow-y-auto">
+            <ul class="space-y-1 px-3">
+                <li>
+                    <a href="#" onclick="showView('dashboard')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 bg-slate-800 text-blue-400 font-medium transition-colors" data-view="dashboard">
+                        <i class="fas fa-chart-line w-5 text-center"></i> Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="showView('agent')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors" data-view="agent">
+                        <i class="fas fa-user-headset w-5 text-center"></i> Panel de Agente
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="showView('campaigns')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors" data-view="campaigns">
+                        <i class="fas fa-bullhorn w-5 text-center"></i> Campañas
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="showView('contacts')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors" data-view="contacts">
+                        <i class="fas fa-address-book w-5 text-center"></i> Base de Datos
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="showView('reports')" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 text-slate-300 transition-colors" data-view="reports">
+                        <i class="fas fa-file-invoice w-5 text-center"></i> Reportes (Logs)
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <div class="p-4 border-t border-slate-700 bg-slate-950">
+            <div class="flex items-center gap-3">
+                <img src="https://ui-avatars.com/api/?name=Admin+User&background=3b82f6&color=fff" alt="Admin" class="w-10 h-10 rounded-full border-2 border-slate-700">
+                <div>
+                    <p class="text-sm font-semibold">Admin / Sup.</p>
+                    <p class="text-xs text-emerald-400 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 block"></span> En línea</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 z-10 shrink-0">
+            <h2 id="page-title" class="text-xl font-bold text-gray-800">Dashboard General</h2>
+            
+            <div class="flex items-center gap-4">
+                <button onclick="openHelpModal()" class="text-gray-400 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50" title="¿Cómo usar esto?">
+                    <i class="fas fa-question-circle text-xl"></i>
+                </button>
+                <div class="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-lg border border-gray-200">
+                    <span class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Predictivo:</span>
+                    <span id="global-dialer-status" class="w-3 h-3 rounded-full bg-red-500 shadow-sm"></span>
+                    <span id="global-dialer-text" class="text-sm font-bold text-red-600 w-24">Detenido</span>
+                </div>
+                <button onclick="toggleGlobalDialer()" id="btn-toggle-dialer" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg shadow-md transition-all duration-200 text-sm font-bold flex items-center gap-2">
+                    <i class="fas fa-power-off"></i> <span>Iniciar Campaña</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6 relative bg-slate-50">
+            
+            <div id="view-dashboard" class="view-section">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Llamadas Intentadas</p>
+                            <h3 id="stat-total-calls" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 text-xl"><i class="fas fa-phone"></i></div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Contactos Conectados</p>
+                            <h3 id="stat-connected-calls" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 text-xl"><i class="fas fa-headset"></i></div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Agentes Libres</p>
+                            <h3 id="stat-agents-free" class="text-2xl font-black text-gray-800 mt-1">0 / 5</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500 text-xl"><i class="fas fa-users"></i></div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Tasa de Abandono</p>
+                            <h3 id="stat-drop-rate" class="text-2xl font-black text-gray-800 mt-1">0%</h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl"><i class="fas fa-phone-slash"></i></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 flex flex-col gap-6">
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex-1 flex flex-col">
+                            <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-4 flex items-center gap-2"><i class="fas fa-cogs text-slate-400"></i> Motor Predictivo en Vivo</h3>
+                            
+                            <div class="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl mb-4 shadow-inner">
+                                <div class="text-center flex-1 border-r border-slate-700">
+                                    <p class="text-xs text-slate-400 uppercase font-semibold">Pacing Ratio</p>
+                                    <p id="engine-pacing" class="text-2xl font-bold text-blue-400 mt-1">1.5</p>
+                                </div>
+                                <div class="text-center flex-1 border-r border-slate-700">
+                                    <p class="text-xs text-slate-400 uppercase font-semibold">Cola Contactos</p>
+                                    <p id="engine-queue" class="text-2xl font-bold text-white mt-1">0</p>
+                                </div>
+                                <div class="text-center flex-1">
+                                    <p class="text-xs text-slate-400 uppercase font-semibold">Líneas Activas</p>
+                                    <p id="engine-dialing" class="text-2xl font-bold text-orange-400 mt-1">0</p>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 border border-gray-100 rounded-xl overflow-hidden flex flex-col bg-slate-50">
+                                <div class="bg-gray-200/50 text-xs font-bold text-gray-600 p-3 grid grid-cols-4 border-b border-gray-200">
+                                    <div>Teléfono</div>
+                                    <div>Estado Línea</div>
+                                    <div>Duración</div>
+                                    <div>Contacto</div>
+                                </div>
+                                <div id="active-calls-list" class="flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px] bg-white">
+                                    <div class="text-center text-gray-400 mt-10 text-sm italic">Presiona "Iniciar Campaña" para arrancar el motor.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 h-64 flex flex-col">
+                            <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-2 flex items-center gap-2"><i class="fas fa-chart-pie text-slate-400"></i> Resultados de Llamadas</h3>
+                            <div class="flex-1 relative w-full h-full flex justify-center items-center">
+                                <canvas id="dispositionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col h-full">
+                        <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-4 flex items-center gap-2"><i class="fas fa-users-cog text-slate-400"></i> Estado de Agentes</h3>
+                        <div id="dashboard-agents-list" class="flex-1 overflow-y-auto space-y-3 pr-2">
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-3 text-xs text-gray-600 font-medium">
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm"></span> Libre</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm"></span> Llamada</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm"></span> ACW (Tipificando)</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm"></span> Pausa</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-agent" class="view-section hidden h-full">
+                <div class="max-w-5xl mx-auto h-full flex flex-col drop-shadow-sm">
+                    <div class="bg-slate-800 rounded-t-xl p-4 flex justify-between items-center text-white">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <img src="https://ui-avatars.com/api/?name=Agente+Demo&background=3b82f6&color=fff" class="w-14 h-14 rounded-full border-2 border-slate-600">
+                                <span id="agent-status-indicator" class="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-amber-500 border-2 border-slate-800"></span>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg">Agente: Maria (Tú)</h3>
+                                <p id="agent-status-text" class="text-sm text-slate-300 font-medium">En Pausa</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 bg-slate-900/50 p-1.5 rounded-lg border border-slate-700">
+                            <button onclick="setAgentStatus('ready')" class="hover:bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-md font-medium transition-colors flex items-center gap-2">
+                                <i class="fas fa-play"></i> Listo
+                            </button>
+                            <button onclick="setAgentStatus('paused')" class="hover:bg-amber-500/20 text-amber-400 px-4 py-2 rounded-md font-medium transition-colors flex items-center gap-2">
+                                <i class="fas fa-pause"></i> Pausa
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 bg-white rounded-b-xl overflow-hidden flex flex-col md:flex-row shadow-sm border-x border-b border-gray-200">
+                        <div class="flex-1 flex flex-col">
+                            <div class="p-4 bg-slate-50 border-b border-gray-200 flex justify-between items-center">
+                                <h4 class="font-bold text-gray-700 uppercase text-xs tracking-wide"><i class="fas fa-address-card mr-2 text-blue-500"></i>Ficha de Contacto</h4>
+                                <span id="call-timer" class="text-xl font-mono text-gray-500 bg-white px-3 py-1 rounded-md border border-gray-200 shadow-inner hidden">00:00</span>
+                            </div>
+                            
+                            <div class="p-6 flex-1 overflow-y-auto relative bg-white">
+                                <div id="agent-waiting-screen" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-slate-50/50 z-10">
+                                    <div class="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                                        <i class="fas fa-satellite-dish text-4xl text-slate-300"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-slate-500">Esperando conexión...</h3>
+                                    <p class="text-sm mt-2 text-center max-w-sm">Ponte en estado "Listo" y asegúrate de que la campaña predictiva esté activa en el Dashboard.</p>
+                                </div>
+
+                                <div id="agent-active-screen" class="hidden h-full flex flex-col">
+                                    <div class="flex justify-between items-start mb-6">
+                                        <div>
+                                            <h2 id="crm-name" class="text-3xl font-black text-gray-800">Nombre del Cliente</h2>
+                                            <p id="crm-phone" class="text-xl text-blue-600 font-mono mt-1 font-bold">+52 55 1234 5678</p>
+                                        </div>
+                                        <span class="bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider animate-pulse flex items-center gap-2 border border-red-200">
+                                            <i class="fas fa-phone-volume"></i> En Línea
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-4 mb-6">
+                                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Ubicación</p>
+                                            <p id="crm-city" class="text-gray-800 font-semibold text-lg"><i class="fas fa-map-marker-alt text-red-400 mr-1"></i> Ciudad de México</p>
+                                        </div>
+                                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Campaña Actual</p>
+                                            <p id="crm-campaign" class="text-gray-800 font-semibold text-lg"><i class="fas fa-bullhorn text-blue-400 mr-1"></i> Ventas 2026</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex-1 border border-blue-100 rounded-xl overflow-hidden flex flex-col shadow-sm">
+                                        <div class="bg-blue-50 px-4 py-3 border-b border-blue-100 text-sm font-bold text-blue-800 uppercase tracking-wide">
+                                            <i class="fas fa-comment-dots mr-2"></i> Guión de Ventas
+                                        </div>
+                                        <div class="p-5 text-base text-gray-700 overflow-y-auto bg-white flex-1 leading-relaxed">
+                                            <p class="mb-4">"Hola, ¿qué tal? Hablo con <span id="script-name" class="font-bold text-blue-600 bg-blue-50 px-1 rounded">Nombre</span>, ¿verdad? Le llamo de la empresa Demo CRM."</p>
+                                            <p class="mb-4">"El motivo de mi llamada es porque estamos lanzando una promoción exclusiva en <span id="script-city" class="font-bold text-blue-600 bg-blue-50 px-1 rounded">Ciudad</span> y vimos que su perfil aplica."</p>
+                                            <p>"¿Le interesaría escuchar cómo puede ahorrar hasta un 30% en nuestros servicios?"</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-full md:w-80 bg-slate-50 flex flex-col border-l border-gray-200 z-20">
+                            <div class="p-4 bg-slate-100 border-b border-gray-200">
+                                <h4 class="font-bold text-gray-700 uppercase text-xs tracking-wide"><i class="fas fa-tasks mr-2 text-indigo-500"></i>Resolución</h4>
+                            </div>
+                            <div class="p-5 flex-1 flex flex-col">
+                                <p class="text-xs text-slate-500 mb-4 font-medium">Clasifica el resultado para terminar la gestión.</p>
+                                
+                                <div class="space-y-3 flex-1">
+                                    <button class="disp-btn w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-emerald-500 hover:shadow-md transition-all flex items-center justify-between group disabled:opacity-50 disabled:pointer-events-none" disabled onclick="saveDisposition('Venta Exitosa')">
+                                        <span class="font-bold text-gray-700 group-hover:text-emerald-600">Venta Exitosa</span>
+                                        <i class="fas fa-check-circle text-emerald-500 opacity-0 group-hover:opacity-100 text-lg"></i>
+                                    </button>
+                                    <button class="disp-btn w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all flex items-center justify-between group disabled:opacity-50 disabled:pointer-events-none" disabled onclick="saveDisposition('Agendar Llamada')">
+                                        <span class="font-bold text-gray-700 group-hover:text-blue-600">Agendar Llamada</span>
+                                        <i class="fas fa-calendar-check text-blue-500 opacity-0 group-hover:opacity-100 text-lg"></i>
+                                    </button>
+                                    <button class="disp-btn w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-amber-500 hover:shadow-md transition-all flex items-center justify-between group disabled:opacity-50 disabled:pointer-events-none" disabled onclick="saveDisposition('No Interesado')">
+                                        <span class="font-bold text-gray-700 group-hover:text-amber-600">No Interesado</span>
+                                        <i class="fas fa-times-circle text-amber-500 opacity-0 group-hover:opacity-100 text-lg"></i>
+                                    </button>
+                                    <button class="disp-btn w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-red-500 hover:shadow-md transition-all flex items-center justify-between group disabled:opacity-50 disabled:pointer-events-none" disabled onclick="saveDisposition('Número Equivocado')">
+                                        <span class="font-bold text-gray-700 group-hover:text-red-600">Número Equivocado</span>
+                                        <i class="fas fa-phone-slash text-red-500 opacity-0 group-hover:opacity-100 text-lg"></i>
+                                    </button>
+                                </div>
+
+                                <div class="mt-6 pt-4 border-t border-gray-200">
+                                    <button onclick="hangupCall()" id="btn-hangup" class="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold shadow transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2" disabled>
+                                        <i class="fas fa-phone-slash"></i> Cortar Llamada
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-campaigns" class="view-section hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-gray-800 text-lg">Campañas Activas</h3>
+                        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-bold shadow-sm"><i class="fas fa-plus mr-1"></i> Nueva Campaña</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                                    <th class="p-4 font-bold border-b">Nombre</th>
+                                    <th class="p-4 font-bold border-b">Estrategia</th>
+                                    <th class="p-4 font-bold border-b">Progreso</th>
+                                    <th class="p-4 font-bold border-b">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-gray-100 hover:bg-slate-50 transition-colors">
+                                    <td class="p-4 font-bold text-gray-800">Ventas Outbound 2026</td>
+                                    <td class="p-4 text-sm text-gray-600">Marcación Predictiva</td>
+                                    <td class="p-4 w-1/3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex-1 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-blue-500 h-2 rounded-full" style="width: 65%"></div>
+                                            </div>
+                                            <span class="text-xs font-bold text-gray-500">65%</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4"><span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">En Ejecución</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-contacts" class="view-section hidden flex flex-col h-full">
+                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-lg">Base de Datos (Cola de Marcación)</h3>
+                            <p class="text-sm text-gray-500">Próximos registros a ser procesados por el motor predictivo.</p>
+                        </div>
+                        <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-sm font-bold border border-slate-200" id="total-contacts-badge">Total: 500</span>
+                    </div>
+                    
+                    <div class="flex-1 overflow-auto border border-gray-200 rounded-lg">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                                <tr class="text-slate-600 text-xs uppercase tracking-wide">
+                                    <th class="p-3 font-bold">ID</th>
+                                    <th class="p-3 font-bold">Nombre</th>
+                                    <th class="p-3 font-bold">Teléfono</th>
+                                    <th class="p-3 font-bold">Ciudad</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contacts-table-body" class="bg-white">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-reports" class="view-section hidden flex flex-col h-full">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 flex flex-col">
+                   <div class="mb-4">
+                       <h3 class="font-bold text-gray-800 text-lg">Registro de Llamadas (En Vivo)</h3>
+                       <p class="text-sm text-gray-500">Historial de gestiones realizadas por todos los agentes.</p>
+                   </div>
+                   
+                   <div class="flex-1 overflow-auto border border-gray-200 rounded-lg">
+                       <table class="w-full text-left border-collapse text-sm">
+                           <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                               <tr class="text-slate-600 text-xs uppercase tracking-wide">
+                                   <th class="p-3 font-bold">Hora</th>
+                                   <th class="p-3 font-bold">Agente</th>
+                                   <th class="p-3 font-bold">Cliente</th>
+                                   <th class="p-3 font-bold">Tipificación</th>
+                               </tr>
+                           </thead>
+                           <tbody id="reports-table-body" class="bg-white">
+                               <tr class="text-center"><td colspan="4" class="p-8 text-gray-400 italic">No hay registros todavía. Inicia la campaña.</td></tr>
+                           </tbody>
+                       </table>
+                   </div>
+               </div>
+           </div>
+
+        </div>
+    </main>
+
+    <div id="toast-container"></div>
+
+    <div id="help-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300 opacity-0">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform scale-95 transition-transform duration-300" id="help-modal-content">
+            <div class="bg-slate-800 p-5 flex justify-between items-center text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-rocket text-blue-400"></i> ¿Cómo usar este simulador CRM?</h3>
+                <button onclick="closeHelpModal()" class="text-slate-300 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                <div class="space-y-6 text-sm text-gray-600">
+                    <div class="flex gap-4">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">1</div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 text-base mb-1">Enciende el Motor</h4>
+                            <p>En la esquina superior derecha, haz clic en el botón azul <strong class="text-blue-600">"Iniciar Campaña"</strong>. Verás cómo el marcador comienza a procesar contactos de la base de datos automáticamente.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">2</div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 text-base mb-1">Observa la Magia en el Dashboard</h4>
+                            <p>Quédate en el <strong>Dashboard</strong> unos segundos. Verás las líneas telefónicas activarse, los agentes virtuales empezar a recibir llamadas y la gráfica de pastel llenarse sola.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">3</div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 text-base mb-1">Toma tu primera llamada</h4>
+                            <p>Ve a la sección <strong class="text-gray-800">Panel de Agente</strong> en el menú lateral. Cambia tu estado a <strong class="text-emerald-500">"Listo"</strong>. Al instante (o en unos segundos) el sistema predictivo te enrutará un cliente "en vivo".</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">4</div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 text-base mb-1">Tipifica el resultado</h4>
+                            <p>Cuando termines de leer el guión de prueba, haz clic en <strong class="text-red-500">Cortar Llamada</strong>. Se habilitarán los botones de la derecha. Selecciona un resultado (ej. "Venta Exitosa") para guardarlo.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-100 bg-slate-50 flex justify-end">
+                <button onclick="closeHelpModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm transition-colors">¡Entendido, vamos a probar!</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // === FIREBASE SETUP ===
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'demo-crm';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        
+        let app, auth, db, currentUser;
+        let isCloudEnabled = false;
+        let hasSeeded = false; // Bandera para no sobreescribir datos
+
+        // Funciones expuestas globalmente (necesario al usar type="module")
+        window.openHelpModal = openHelpModal;
+        window.closeHelpModal = closeHelpModal;
+        window.showView = showView;
+        window.setAgentStatus = setAgentStatus;
+        window.saveDisposition = saveDisposition;
+        window.hangupCall = hangupCall;
+        window.toggleGlobalDialer = toggleGlobalDialer;
+
+        // === LÓGICA DEL SIMULADOR ===
+        const firstNames = ["Juan", "Maria", "Carlos", "Ana", "Luis", "Elena", "Pedro", "Laura", "Jose", "Carmen", "Sofia", "Diego", "Valeria", "Miguel"];
+        const lastNames = ["Garcia", "Martinez", "Lopez", "Gonzalez", "Perez", "Rodriguez", "Sanchez", "Ramirez", "Cruz", "Flores", "Gomez", "Diaz"];
+        const cities = ["CDMX", "Guadalajara", "Monterrey", "Puebla", "Tijuana", "Leon", "Juarez", "Merida", "Cancun", "Queretaro"];
+        const possibleDispositions = ['Venta Exitosa', 'Agendar Llamada', 'No Interesado', 'Número Equivocado'];
+
+        function generateRandomContact() {
+            return {
+                id: Math.random().toString(36).substr(2, 6).toUpperCase(),
+                name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                phone: `+52 55 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`,
+                city: cities[Math.floor(Math.random() * cities.length)]
+            };
+        }
+
+        const state = {
+            dialerRunning: false,
+            pacingRatio: 1.5, 
+            contactsQueue: [],
+            activeLines: [],
+            callLogs: [],
+            agents: [
+                { id: 1, name: "Maria (Tú)", isMe: true, status: "paused", currentCall: null },
+                { id: 2, name: "Carlos S.", isMe: false, status: "ready", currentCall: null },
+                { id: 3, name: "Ana P.", isMe: false, status: "ready", currentCall: null },
+                { id: 4, name: "Luis M.", isMe: false, status: "ready", currentCall: null },
+                { id: 5, name: "Elena G.", isMe: false, status: "ready", currentCall: null }
+            ],
+            stats: { totalCallsAttempted: 0, connectedCalls: 0, droppedCalls: 0 },
+            dispositionCounts: { 'Venta Exitosa': 0, 'Agendar Llamada': 0, 'No Interesado': 0, 'Número Equivocado': 0 },
+            simLoopId: null
+        };
+
+        let dispositionChart = null;
+
+        function openHelpModal() {
+            const modal = document.getElementById('help-modal');
+            const content = document.getElementById('help-modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('help-modal');
+            const content = document.getElementById('help-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('dispositionChart').getContext('2d');
+            dispositionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: possibleDispositions,
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11, family: 'Inter' } } } },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function updateChart() {
+            if(!dispositionChart) return;
+            dispositionChart.data.datasets[0].data = [
+                state.dispositionCounts['Venta Exitosa'],
+                state.dispositionCounts['Agendar Llamada'],
+                state.dispositionCounts['No Interesado'],
+                state.dispositionCounts['Número Equivocado']
+            ];
+            dispositionChart.update();
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            let icon = '<i class="fas fa-info-circle text-blue-400"></i>';
+            if(type === 'success') icon = '<i class="fas fa-check-circle text-emerald-400"></i>';
+            if(type === 'warning') icon = '<i class="fas fa-exclamation-triangle text-amber-400"></i>';
+            if(type === 'error') icon = '<i class="fas fa-times-circle text-red-400"></i>';
+
+            toast.className = 'toast';
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showView(viewId) {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('bg-slate-800', 'text-blue-400');
+                link.classList.add('text-slate-300');
+                if(link.getAttribute('data-view') === viewId) {
+                    link.classList.add('bg-slate-800', 'text-blue-400');
+                    link.classList.remove('text-slate-300');
+                }
+            });
+
+            document.querySelectorAll('.view-section').forEach(view => view.classList.add('hidden'));
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+
+            const titles = {
+                'dashboard': 'Dashboard General',
+                'agent': 'Panel de Agente',
+                'campaigns': 'Gestión de Campañas',
+                'contacts': 'Base de Datos de Contactos',
+                'reports': 'Reportes y Logs'
+            };
+            document.getElementById('page-title').innerText = titles[viewId];
+
+            if (viewId === 'contacts') renderContactsTable();
+        }
+
+        function renderContactsTable() {
+            const tbody = document.getElementById('contacts-table-body');
+            document.getElementById('total-contacts-badge').innerText = `Total: ${state.contactsQueue.length}`;
+            const displayList = state.contactsQueue.slice(0, 50); 
+            
+            if (displayList.length === 0) {
+                 tbody.innerHTML = '<tr class="text-center"><td colspan="4" class="p-8 text-gray-400 italic">Base de datos vacía.</td></tr>';
+                 return;
+            }
+
+            tbody.innerHTML = displayList.map(c => `
+                <tr class="border-b border-gray-100 hover:bg-slate-50">
+                    <td class="p-3 font-mono text-gray-500">${c.id}</td>
+                    <td class="p-3 font-semibold text-gray-800">${c.name}</td>
+                    <td class="p-3 text-blue-600">${c.phone}</td>
+                    <td class="p-3 text-gray-600">${c.city}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('reports-table-body');
+            if(state.callLogs.length === 0) {
+                tbody.innerHTML = '<tr class="text-center"><td colspan="4" class="p-8 text-gray-400 italic">No hay registros todavía. Inicia la campaña.</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = state.callLogs.map(log => {
+                let resColor = 'text-gray-600';
+                if(log.result === 'Venta Exitosa') resColor = 'text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded';
+                if(log.result === 'Agendar Llamada') resColor = 'text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded';
+                if(log.result === 'No Interesado') resColor = 'text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded';
+                if(log.result === 'Número Equivocado') resColor = 'text-red-600 font-bold bg-red-50 px-2 py-1 rounded';
+
+                return `
+                <tr class="border-b border-gray-100 hover:bg-slate-50 animate-[fadeIn_0.5s_ease-out]">
+                    <td class="p-3 text-gray-500 text-xs">${log.time}</td>
+                    <td class="p-3 font-semibold text-gray-800 flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">${log.agent.charAt(0)}</div>
+                        ${log.agent}
+                    </td>
+                    <td class="p-3 text-gray-600">${log.contact}</td>
+                    <td class="p-3"><span class="${resColor} text-xs">${log.result}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ... MÉTODOS DEL AGENTE ...
+        let miAgenteCallTimer = null;
+        let miAgenteCallSeconds = 0;
+
+        function setAgentStatus(newStatus) {
+            const me = state.agents.find(a => a.isMe);
+            if (me.currentCall && newStatus === 'paused') {
+                showToast("No puedes pausarte durante una llamada activa.", "error");
+                return;
+            }
+            
+            me.status = newStatus;
+            const indicator = document.getElementById('agent-status-indicator');
+            const text = document.getElementById('agent-status-text');
+            
+            if (newStatus === 'ready') {
+                indicator.className = 'absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-slate-800 shadow-[0_0_8px_rgba(16,185,129,0.8)]';
+                text.innerText = 'Listo (Esperando)';
+                showToast("Estado cambiado a Listo.", "success");
+            } else if (newStatus === 'paused') {
+                indicator.className = 'absolute bottom-0 right-0 w-4 h-4 rounded-full bg-amber-500 border-2 border-slate-800';
+                text.innerText = 'En Pausa';
+                showToast("Estado cambiado a Pausa.", "warning");
+            } else if (newStatus === 'incall') {
+                indicator.className = 'absolute bottom-0 right-0 w-4 h-4 rounded-full bg-blue-500 border-2 border-slate-800 pulse-animation';
+                text.innerText = 'En Llamada';
+            } else if (newStatus === 'wrapup') {
+                indicator.className = 'absolute bottom-0 right-0 w-4 h-4 rounded-full bg-purple-500 border-2 border-slate-800';
+                text.innerText = 'Tipificando';
+            }
+            updateDashboardAgents();
+        }
+
+        function agentReceiveCall(contact) {
+            const me = state.agents.find(a => a.isMe);
+            me.currentCall = contact;
+            setAgentStatus('incall');
+
+            document.getElementById('agent-waiting-screen').classList.add('hidden');
+            document.getElementById('agent-active-screen').classList.remove('hidden');
+            document.getElementById('crm-name').innerText = contact.name;
+            document.getElementById('script-name').innerText = contact.name.split(' ')[0];
+            document.getElementById('crm-phone').innerText = contact.phone;
+            document.getElementById('crm-city').innerHTML = `<i class="fas fa-map-marker-alt text-red-400 mr-1"></i> ${contact.city}`;
+            document.getElementById('script-city').innerText = contact.city;
+
+            document.getElementById('btn-hangup').disabled = false;
+            document.querySelectorAll('.disp-btn').forEach(btn => btn.disabled = true);
+
+            miAgenteCallSeconds = 0;
+            const timerEl = document.getElementById('call-timer');
+            timerEl.classList.remove('hidden');
+            timerEl.innerText = "00:00";
+            
+            miAgenteCallTimer = setInterval(() => {
+                miAgenteCallSeconds++;
+                const m = Math.floor(miAgenteCallSeconds / 60).toString().padStart(2, '0');
+                const s = (miAgenteCallSeconds % 60).toString().padStart(2, '0');
+                timerEl.innerText = `${m}:${s}`;
+            }, 1000);
+            showToast("¡Nueva llamada conectada!", "info");
+        }
+
+        function hangupCall() {
+            clearInterval(miAgenteCallTimer);
+            document.getElementById('btn-hangup').disabled = true;
+            setAgentStatus('wrapup');
+            document.querySelectorAll('.disp-btn').forEach(btn => btn.disabled = false);
+            showToast("Llamada finalizada. Por favor tipifica el resultado.", "warning");
+        }
+
+        async function saveDisposition(resultText) {
+            const me = state.agents.find(a => a.isMe);
+            const contactName = me.currentCall.name;
+            const log = { time: new Date().toLocaleTimeString(), agent: me.name, contact: contactName, result: resultText, timestamp: Date.now() };
+            
+            if (isCloudEnabled && currentUser) {
+                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), log);
+            } else {
+                 state.callLogs.unshift(log); // Add to local top
+                 state.dispositionCounts[resultText]++;
+                 renderLogs();
+                 updateChart();
+            }
+
+            document.getElementById('agent-waiting-screen').classList.remove('hidden');
+            document.getElementById('agent-active-screen').classList.add('hidden');
+            document.getElementById('call-timer').classList.add('hidden');
+            document.querySelectorAll('.disp-btn').forEach(btn => btn.disabled = true);
+            
+            me.currentCall = null;
+            showToast(`Guardado en Nube: ${resultText}`, "success");
+            setAgentStatus(state.dialerRunning ? 'ready' : 'paused');
+        }
+
+        // === MOTOR PREDICTIVO ===
+        function toggleGlobalDialer() {
+            state.dialerRunning = !state.dialerRunning;
+            const btn = document.getElementById('btn-toggle-dialer');
+            const statusDot = document.getElementById('global-dialer-status');
+            const statusText = document.getElementById('global-dialer-text');
+
+            if (state.dialerRunning) {
+                btn.innerHTML = '<i class="fas fa-stop"></i> <span>Detener Campaña</span>';
+                btn.classList.replace('bg-blue-600', 'bg-red-600');
+                btn.classList.replace('hover:bg-blue-700', 'hover:bg-red-700');
+                statusDot.classList.replace('bg-red-500', 'bg-emerald-500');
+                statusDot.classList.add('pulse-animation');
+                statusText.innerText = "En Ejecución";
+                statusText.classList.replace('text-red-600', 'text-emerald-600');
+                
+                showToast("Motor Predictivo Iniciado", "success");
+                state.simLoopId = setInterval(dialerTick, 1000);
+            } else {
+                btn.innerHTML = '<i class="fas fa-power-off"></i> <span>Iniciar Campaña</span>';
+                btn.classList.replace('bg-red-600', 'bg-blue-600');
+                btn.classList.replace('hover:bg-red-700', 'hover:bg-blue-700');
+                statusDot.classList.replace('bg-emerald-500', 'bg-red-500');
+                statusDot.classList.remove('pulse-animation');
+                statusText.innerText = "Detenido";
+                statusText.classList.replace('text-emerald-600', 'text-red-600');
+                
+                showToast("Motor Predictivo Detenido", "error");
+                clearInterval(state.simLoopId);
+                state.activeLines = state.activeLines.filter(line => line.status === 'connected');
+                updateDashboardUI();
+            }
+        }
+
+        function dialerTick() {
+            if (!state.dialerRunning) return;
+            const freeAgents = state.agents.filter(a => a.status === 'ready');
+            const estimatedHitRate = 0.35; 
+            let targetActiveLines = Math.ceil(freeAgents.length * (1 / estimatedHitRate) * state.pacingRatio);
+            if (targetActiveLines > 12) targetActiveLines = 12;
+            if (freeAgents.length === 0 && Math.random() > 0.15) targetActiveLines = 0; 
+            const linesToSpawn = targetActiveLines - state.activeLines.length;
+
+            if (linesToSpawn > 0) {
+                for (let i = 0; i < linesToSpawn; i++) {
+                    if (state.contactsQueue.length === 0) break;
+                    
+                    const contact = state.contactsQueue.shift();
+                    state.stats.totalCallsAttempted++;
+                    
+                    // Borrar contacto de la nube si está habilitado
+                    if (isCloudEnabled && currentUser && contact.docId) {
+                         deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contacts', contact.docId)).catch(e => console.log(e));
+                    }
+
+                    state.activeLines.push({
+                        id: Math.random().toString(36).substr(2, 6),
+                        contact: contact,
+                        status: 'dialing',
+                        timeInState: 0,
+                        duration: 0
+                    });
+                }
+            }
+
+            const linesToRemove = [];
+            state.activeLines.forEach((line, index) => {
+                line.timeInState++;
+                line.duration++;
+                if (line.status === 'dialing') {
+                    if (line.timeInState > (1 + Math.random() * 2)) {
+                        line.status = 'ringing';
+                        line.timeInState = 0;
+                    }
+                } 
+                else if (line.status === 'ringing') {
+                    if (line.timeInState > (3 + Math.random() * 8)) {
+                        const isAnswered = Math.random() < 0.38; 
+                        if (isAnswered) {
+                            line.status = 'connected';
+                            state.stats.connectedCalls++;
+                            routeCallToAgent(line, index, linesToRemove);
+                        } else {
+                            line.status = 'failed';
+                            linesToRemove.push(index);
+                        }
+                    }
+                }
+            });
+
+            linesToRemove.sort((a,b) => b-a).forEach(idx => state.activeLines.splice(idx, 1));
+            simulateOtherAgents();
+            updateDashboardUI();
+        }
+
+        function routeCallToAgent(line, lineIndex, linesToRemoveArray) {
+            const freeAgent = state.agents.find(a => a.status === 'ready');
+            if (freeAgent) {
+                if (freeAgent.isMe) {
+                    agentReceiveCall(line.contact);
+                } else {
+                    freeAgent.status = 'incall';
+                    freeAgent.currentCall = line.contact;
+                    freeAgent.callDuration = Math.floor(10 + Math.random() * 25); 
+                }
+                linesToRemoveArray.push(lineIndex);
+            } else {
+                state.stats.droppedCalls++;
+                linesToRemoveArray.push(lineIndex);
+            }
+        }
+
+        async function simulateOtherAgents() {
+            state.agents.forEach(async agent => {
+                if (agent.isMe) return;
+
+                if (agent.status === 'incall') {
+                    agent.callDuration--;
+                    if (agent.callDuration <= 0) {
+                        agent.status = 'wrapup';
+                        agent.wrapupTime = Math.floor(3 + Math.random() * 4);
+                    }
+                } else if (agent.status === 'wrapup') {
+                    agent.wrapupTime--;
+                    if (agent.wrapupTime <= 0) {
+                        const randomDisp = possibleDispositions[Math.floor(Math.random() * possibleDispositions.length)];
+                        const log = { time: new Date().toLocaleTimeString(), agent: agent.name, contact: agent.currentCall.name, result: randomDisp, timestamp: Date.now() };
+                        
+                        if (isCloudEnabled && currentUser) {
+                             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), log);
+                        } else {
+                             state.callLogs.unshift(log);
+                             state.dispositionCounts[randomDisp]++;
+                             renderLogs();
+                             updateChart();
+                        }
+                        agent.currentCall = null;
+                        agent.status = Math.random() > 0.05 ? 'ready' : 'paused';
+                    }
+                } else if (agent.status === 'paused') {
+                    if(Math.random() < 0.1) agent.status = 'ready';
+                }
+            });
+        }
+
+        function updateDashboardUI() {
+            document.getElementById('stat-total-calls').innerText = state.stats.totalCallsAttempted;
+            document.getElementById('stat-connected-calls').innerText = state.stats.connectedCalls;
+            const freeAgentsCount = state.agents.filter(a => a.status === 'ready').length;
+            document.getElementById('stat-agents-free').innerText = `${freeAgentsCount} / ${state.agents.length}`;
+
+            const dropRate = state.stats.connectedCalls === 0 ? 0 : ((state.stats.droppedCalls / state.stats.connectedCalls) * 100).toFixed(1);
+            const dropEl = document.getElementById('stat-drop-rate');
+            dropEl.innerText = `${dropRate}%`;
+            if(dropRate > 3) dropEl.classList.add('text-red-600'); else dropEl.classList.remove('text-red-600');
+
+            document.getElementById('engine-queue').innerText = state.contactsQueue.length;
+            document.getElementById('engine-dialing').innerText = state.activeLines.length;
+
+            const listEl = document.getElementById('active-calls-list');
+            if (state.activeLines.length === 0) {
+                listEl.innerHTML = `<div class="text-center text-gray-400 mt-10 text-sm italic">${state.dialerRunning ? 'Buscando contactos...' : 'Motor detenido.'}</div>`;
+            } else {
+                listEl.innerHTML = state.activeLines.map(line => {
+                    let statusColor = 'text-gray-500';
+                    let statusText = line.status;
+                    let icon = '';
+                    if(line.status === 'dialing') { statusColor = 'text-gray-500'; statusText = 'Marcando'; icon = '<i class="fas fa-satellite-dish"></i>'; }
+                    if(line.status === 'ringing') { statusColor = 'text-orange-500 ringing inline-block'; statusText = 'Sonando'; icon = '<i class="fas fa-bell"></i>'; }
+
+                    return `
+                    <div class="grid grid-cols-4 text-sm p-2.5 bg-white rounded-lg border border-gray-100 shadow-sm items-center hover:bg-slate-50 transition-colors">
+                        <div class="font-mono text-xs font-bold text-gray-700">${line.contact.phone}</div>
+                        <div class="${statusColor} text-xs font-bold flex items-center gap-1.5 uppercase tracking-wide">${icon} ${statusText}</div>
+                        <div class="text-xs text-gray-500 font-mono">${line.duration}s</div>
+                        <div class="text-xs text-blue-600 font-semibold truncate" title="${line.contact.name}">${line.contact.name}</div>
+                    </div>`;
+                }).join('');
+            }
+            updateDashboardAgents();
+        }
+
+        function updateDashboardAgents() {
+             const agentsListEl = document.getElementById('dashboard-agents-list');
+             agentsListEl.innerHTML = state.agents.map(agent => {
+                 let dotClass, statusText;
+                 switch(agent.status) {
+                     case 'ready': dotClass = 'bg-emerald-500'; statusText = 'Libre'; break;
+                     case 'incall': dotClass = 'bg-blue-500 pulse-animation'; statusText = 'En Llamada'; break;
+                     case 'wrapup': dotClass = 'bg-purple-500'; statusText = 'Tipificando'; break;
+                     case 'paused': dotClass = 'bg-amber-500'; statusText = 'Pausa'; break;
+                 }
+                 return `
+                 <div class="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-center gap-3">
+                        <div class="relative">
+                            <img src="https://ui-avatars.com/api/?name=${agent.name.replace(' ','+')}&background=f1f5f9&color=475569" class="w-10 h-10 rounded-full border border-gray-200">
+                            <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full ${dotClass}"></span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800 ${agent.isMe ? 'text-blue-600' : ''}">${agent.name}</p>
+                            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">${statusText}</p>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        ${agent.currentCall ? `<i class="fas fa-phone-volume text-blue-400" title="Hablando con: ${agent.currentCall.name}"></i>` : ''}
+                    </div>
+                 </div>`;
+             }).join('');
+        }
+
+        // === INICIALIZACIÓN DE FIREBASE (NUBE) ===
+        function setupCloudListeners() {
+            const contactsRef = collection(db, 'artifacts', appId, 'public', 'data', 'contacts');
+            const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'logs');
+
+            // Escuchar base de datos (Cola)
+            onSnapshot(contactsRef, (snapshot) => {
+                state.contactsQueue = [];
+                snapshot.forEach(doc => state.contactsQueue.push({ docId: doc.id, ...doc.data() }));
+                
+                // Si la base en la nube está vacía, sembramos datos de prueba automáticamente
+                if (state.contactsQueue.length === 0 && !hasSeeded) {
+                    hasSeeded = true;
+                    showToast("Generando 50 registros en la Nube...", "info");
+                    for(let i=0; i<50; i++) {
+                        addDoc(contactsRef, generateRandomContact());
+                    }
+                } else {
+                    if (!document.getElementById('view-contacts').classList.contains('hidden')) renderContactsTable();
+                    updateDashboardUI();
+                }
+            }, (error) => console.error("Error leyendo DB:", error));
+
+            // Escuchar Reportes (Logs)
+            onSnapshot(logsRef, (snapshot) => {
+                state.callLogs = [];
+                state.dispositionCounts = { 'Venta Exitosa': 0, 'Agendar Llamada': 0, 'No Interesado': 0, 'Número Equivocado': 0 };
+                
+                snapshot.forEach(doc => {
+                    const log = doc.data();
+                    state.callLogs.push(log);
+                    if (state.dispositionCounts[log.result] !== undefined) state.dispositionCounts[log.result]++;
+                });
+
+                // Ordenar del más reciente al más antiguo
+                state.callLogs.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+                
+                renderLogs();
+                updateChart();
+            }, (error) => console.error("Error leyendo Logs:", error));
+        }
+
+        function initLocalMode() {
+            showToast("Ejecutando en modo Local (Sin Nube)", "warning");
+            for(let i=0; i<500; i++) state.contactsQueue.push(generateRandomContact());
+            renderContactsTable();
+        }
+
+        // === ARRANQUE ===
+        window.onload = async () => {
+            initChart();
+            updateDashboardAgents();
+            
+            if (firebaseConfig) {
+                try {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    
+                    currentUser = auth.currentUser;
+                    if(currentUser) {
+                        isCloudEnabled = true;
+                        showToast("Sistema Conectado a Firestore ☁️", "success");
+                        setupCloudListeners();
+                    }
+                } catch (error) {
+                    console.error("Fallo de conexión Firebase:", error);
+                    initLocalMode();
+                }
+            } else {
+                initLocalMode();
+            }
+
+            setTimeout(openHelpModal, 800);
+        };
+    </script>
+</body>
+</html>
